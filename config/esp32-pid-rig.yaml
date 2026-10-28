@@ -1,0 +1,51 @@
+# Outline (design stage): ESPHome PID loop on the rig. Credentials via !secret.
+one_wire:
+  - platform: gpio
+    pin: GPIO4
+
+sensor:
+  - platform: dallas_temp
+    id: process_temp
+    name: "Rig Process Temperature"
+    update_interval: 2s
+
+output:
+  - platform: ledc            # Actuator B: MOSFET PWM
+    pin: GPIO25
+    id: heater_pwm
+    frequency: 1000Hz
+  - platform: slow_pwm        # Actuator A: relay, time-proportioned
+    pin: GPIO26
+    id: heater_relay
+    period: 120s              # experiment 7 varies this
+
+climate:
+  - platform: pid
+    id: rig_pid
+    name: "Rig PID"
+    sensor: process_temp
+    default_target_temperature: 40°C
+    heat_output: heater_pwm   # swap to heater_relay for actuator A
+    control_parameters:
+      kp: 0.1                 # placeholders until the step test
+      ki: 0.001
+      kd: 0.0
+      output_averaging_samples: 5
+      derivative_averaging_samples: 5
+    deadband_parameters:
+      threshold_high: 0.3°C
+      threshold_low: -0.3°C
+
+# Safety: hard over-temperature cut-out
+interval:
+  - interval: 2s
+    then:
+      - if:
+          condition:
+            sensor.in_range:
+              id: process_temp
+              above: 70
+          then:
+            - climate.control:
+                id: rig_pid
+                mode: "OFF"
