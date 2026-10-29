@@ -1,51 +1,69 @@
-# Outline (design stage): ESPHome PID loop on the rig. Credentials via !secret.
+# Outline (design stage): both loops on the rig ESP32. Credentials via !secret.
+# Note: ESPHome's PID climate works on any sensor value; for the flow loop the
+# "temperature" fields simply carry L/min.
 one_wire:
   - platform: gpio
     pin: GPIO4
 
 sensor:
+  - platform: pulse_counter          # flow sensor
+    pin: GPIO5
+    id: flow_lmin
+    name: "Rig Flow"
+    unit_of_measurement: "L/min"
+    update_interval: 1s
+    filters:
+      - multiply: 0.0222             # pulses/min to L/min: set from the sensor's K-factor
   - platform: dallas_temp
-    id: process_temp
-    name: "Rig Process Temperature"
+    id: box_temp
+    name: "Rig Box Temperature"
     update_interval: 2s
 
 output:
-  - platform: ledc            # Actuator B: MOSFET PWM
+  - platform: ledc                   # pump speed (MOSFET PWM)
     pin: GPIO25
+    id: pump_pwm
+    frequency: 1000Hz
+  - platform: ledc                   # heater (MOSFET PWM)
+    pin: GPIO26
     id: heater_pwm
     frequency: 1000Hz
-  - platform: slow_pwm        # Actuator A: relay, time-proportioned
-    pin: GPIO26
+  - platform: slow_pwm               # heater via relay, time-proportioned
+    pin: GPIO27
     id: heater_relay
-    period: 120s              # experiment 7 varies this
+    period: 120s
 
 climate:
   - platform: pid
-    id: rig_pid
-    name: "Rig PID"
-    sensor: process_temp
-    default_target_temperature: 40°C
-    heat_output: heater_pwm   # swap to heater_relay for actuator A
+    id: flow_pid
+    name: "Rig Flow PID"
+    sensor: flow_lmin
+    default_target_temperature: 2.0  # L/min
+    heat_output: pump_pwm
     control_parameters:
-      kp: 0.1                 # placeholders until the step test
+      kp: 0.2
+      ki: 0.05
+      kd: 0.0
+  - platform: pid
+    id: box_pid
+    name: "Rig Thermal PID"
+    sensor: box_temp
+    default_target_temperature: 40
+    heat_output: heater_pwm          # swap to heater_relay for the relay experiments
+    control_parameters:
+      kp: 0.1
       ki: 0.001
       kd: 0.0
-      output_averaging_samples: 5
-      derivative_averaging_samples: 5
-    deadband_parameters:
-      threshold_high: 0.3°C
-      threshold_low: -0.3°C
 
-# Safety: hard over-temperature cut-out
 interval:
   - interval: 2s
     then:
       - if:
           condition:
             sensor.in_range:
-              id: process_temp
+              id: box_temp
               above: 70
           then:
             - climate.control:
-                id: rig_pid
+                id: box_pid
                 mode: "OFF"

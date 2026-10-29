@@ -1,24 +1,11 @@
-# 04 · Results and Lessons (Template)
+# 04 Results and lessons (template)
 
 [← Back to README](../README.md)
 
-## Process model
-| Parameter | Value |
-|---|---|
-| Process gain K (°C/%) | |
-| Time constant τ (min) | |
-| Dead time θ (min) | |
+| Loop | K | τ | θ | Kp | Ki | Kd | Notes |
+|---|---|---|---|---|---|---|---|
+| Flow (PWM) | | | | | | | |
+| Thermal (PWM) | | | | | | | |
+| Thermal (relay, time-proportioned) | | | | | | | |
 
-## Tuned parameters
-| Loop | Kp | Ki | Kd | Output | Notes |
-|---|---|---|---|---|---|
-| Relay, time-proportioned | | | | | |
-| MOSFET PWM | | | | | |
-
-## Experiment conclusions
-| # | Conclusion |
-|---|---|
-| 1-8 | |
-
-## Lessons carried to the boiler loop
-- ⟨fill in⟩
+**Lessons carried to real plant:** ⟨fill in⟩
