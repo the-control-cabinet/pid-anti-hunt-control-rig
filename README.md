@@ -18,6 +18,75 @@
 
 ---
 
+## Status at a glance
+
+| Item | Status |
+|---|---|
+| Rig (24 V PSU, ESP32-S3, relays; shared with duty/standby) | ✅ Built / in progress |
+| Two loops specified (flow and thermal) with safety | 📐 Designed ([doc 01](docs/01-rig-and-processes.md)) |
+| Eight experiments with expected behaviour per loop | 📐 Designed ([doc 02](docs/02-experiments.md)) |
+| Tuning method (step test, FOPDT fit, SIMC, autotune comparison) | 📐 Designed ([doc 03](docs/03-tuning-method.md)) |
+| ESPHome outline config (both loops, over-temperature cut-out) | 📐 Drafted ([config](config/esp32-pid-rig.yaml)) |
+| Flow sensor, MOSFET module, heater, fuses; step tests; experiments | ⏳ To source and run |
+
+## Why two contrasting loops
+
+Most BMS loops are either **fast and noisy** (a pump or damper on flow or pressure) or **slow with dead time** (a room, a heat exchanger, a boiler flow temperature). The same tuning rules behave very differently on the two. Running identical experiments on both, side by side, is the quickest way to learn why a setting that's perfect on one hunts badly on the other. The house's own boiler only allows flow-**temperature** modulation (via OpenTherm), so flow-**rate** PID is proven here on the rig.
+
+## The two loops
+
+```mermaid
+flowchart LR
+    subgraph F["Loop 1: flow rate (fast)"]
+        FS["Pulse flow sensor"] --> FC["PID"] --> FM["MOSFET PWM"] --> FP["24 V pump"]
+        FV["Manual valve<br/>(disturbance)"] -.-> FS
+    end
+    subgraph T["Loop 2: temperature (slow)"]
+        TS["DS18B20"] --> TC["PID"] --> TA["Relay (time-proportioned)<br/>or MOSFET PWM"] --> TH["24 V heater<br/>in an insulated box"]
+        TF["Fan / lid<br/>(disturbance)"] -.-> TS
+    end
+```
+
+| | Loop 1: flow | Loop 2: thermal |
+|---|---|---|
+| Process variable | Flow, L/min (pulse counter) | Box temperature (DS18B20) |
+| Actuator | MOSFET PWM on the pump | Relay (time-proportioned) **and** MOSFET PWM |
+| Expected time constant | Seconds | Minutes, with real dead time |
+| Disturbance | Partly closing a manual valve | A small fan, or opening the lid |
+| Character | Fast, noisy (pulse quantisation) | Slow, lagging (moving the sensor adds dead time) |
+
+## Eight experiments, on both loops
+
+| # | Experiment | Flow loop (expected) | Thermal loop (expected) |
+|---|---|---|---|
+| 1 | On/off with differential | Rapid cycling | Slow swings, overshoot |
+| 2 | Proportional only | Offset; chatter if narrow | Offset; slow oscillation if narrow |
+| 3 | PI | Offset removed quickly | Removed slowly; too much I oscillates |
+| 4 | Windup | Short overshoot | Large, long overshoot |
+| 5 | Anti-windup | Small improvement | Large improvement |
+| 6 | Derivative (filtered) | Amplifies noise: leave off | Helps against overshoot |
+| 7 | Time-proportioning cycle (relay) | Unsuitable | Works with a long cycle: ripple vs relay wear |
+| 8 | Hunting clinic | Gain or noise; cure: lower gain, filter, deadband | Sensor lag; cure: retune or move the sensor |
+
+Each run: hypothesis → trend → conclusion, logged in [data/experiment-log.csv](data/experiment-log.csv).
+
+## Tuning method
+
+1. **Open-loop step test** on each loop.
+2. **Fit first-order-plus-dead-time:** gain K, time constant τ, dead time θ.
+3. **Initial PI by SIMC:** Kc = τ / (K × (τc + θ)), Ti = min(τ, 4(τc + θ)).
+4. **Compare with ESPHome's autotune.**
+5. **Detune for robustness**, then verify with setpoint and disturbance steps.
+6. **Carry forward:** the thermal-loop method is the one used for the [OpenTherm boiler loop](https://github.com/the-control-cabinet/opentherm-boiler-control-esphome).
+
+## Safety
+
+- 24 V DC only, a fuse per load.
+- Heater: firmware over-temperature cut-out at 70 °C **and** a thermal fuse on the resistor.
+- Pump: never runs dry (the low-level permissive shared with the duty/standby rig).
+
+**Real-plant motivation:** the house boiler currently short-cycles at low load (4-8 minute cycles) and runs a 65-72 °C flow ([FDD F1](https://github.com/the-control-cabinet/fdd-rules-heating-plant)). The thermal-loop lessons here (anti-windup, minimum on/off, tuning a lagging process) feed directly into the OpenTherm design that addresses it.
+
 ## Documents
 
 | Doc | Contents |

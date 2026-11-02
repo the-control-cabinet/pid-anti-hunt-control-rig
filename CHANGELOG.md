@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.2.1] - 2026-11-03
+- README expanded: status, why two loops, loop diagram and comparison table, experiments, tuning method, safety, link to real boiler cycling.
+
 ## [0.2.0] - 2026-10-28
 - Rebuilt around two processes: a flow-rate loop on the rig's 24 V pumps (primary, matching the original #8 scope) and a heater-in-a-box thermal loop; experiments compared across both; outline YAML for both loops.
 
